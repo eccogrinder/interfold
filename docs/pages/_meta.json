@@ -24,15 +24,7 @@
   "use-cases": {
     "title": "Use Cases"
   },
-  "building-with-interfold": {
-    "title": "Building with Interfold"
-  },
-  "best-practices": {
-    "title": "Best Practices"
-  },
-  "requestor-guide": {
-    "title": "Requestor Guide"
-  },
+
   "-- Getting Started": {
     "type": "separator",
     "title": "Getting Started"
@@ -49,16 +41,16 @@
   "hello-world-tutorial": {
     "title": "Hello World"
   },
-  "-- Tutorials": {
+
+  "-- Build": {
     "type": "separator",
-    "title": "Tutorials"
+    "title": "Build"
   },
-  "tutorials": {
-    "title": "Tutorials"
+  "building-with-interfold": {
+    "title": "Building with Interfold"
   },
-  "-- Tooling": {
-    "type": "separator",
-    "title": "Tooling"
+  "best-practices": {
+    "title": "Best Practices"
   },
   "project-template": {
     "title": "Project Template"
@@ -72,6 +64,7 @@
   "noir-circuits": {
     "title": "Noir Circuits"
   },
+
   "-- Build an E3": {
     "type": "separator",
     "title": "Build an E3 Program"
@@ -94,30 +87,16 @@
   "putting-it-together": {
     "title": "Putting It All Together"
   },
-  "-- Operations": {
+
+  "-- Participate": {
     "type": "separator",
-    "title": "Operations"
+    "title": "Participate"
   },
-  "ciphernode-operators": {
-    "title": "Ciphernode Operators"
+  "governance": {
+    "title": "Interfold Governance"
   },
-  "-- Examples": {
-    "type": "separator",
-    "title": "Examples"
-  },
-  "CRISP": {
-    "title": "CRISP"
-  },
-  "-- Internals": {
-    "type": "separator",
-    "title": "Internals"
-  },
-  "internals": {
-    "title": "Technical Deep Dives"
-  },
-  "-- FOLD Token": {
-    "type": "separator",
-    "title": "FOLD Token"
+  "constitution": {
+    "title": "The Interfold Constitution"
   },
   "tokenomics": {
     "title": "Tokenomics"
@@ -125,6 +104,34 @@
   "faq": {
     "title": "Frequently Asked Questions"
   },
+  "requestor-guide": {
+    "title": "Requestor Guide"
+  },
+
+  "-- Operators": {
+    "type": "separator",
+    "title": "Operators"
+  },
+  "ciphernode-operators": {
+    "title": "Ciphernode Operators"
+  },
+
+  "-- Applications": {
+    "type": "separator",
+    "title": "Applications"
+  },
+  "CRISP": {
+    "title": "CRISP"
+  },
+
+  "-- Internals": {
+    "type": "separator",
+    "title": "Internals"
+  },
+  "internals": {
+    "title": "Technical Deep Dives"
+  },
+
   "-- Reference": {
     "type": "separator",
     "title": "Reference"
