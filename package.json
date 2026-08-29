@@ -1,7 +1,7 @@
 {
   "name": "@interfold/main",
   "description": "Interfold is an open-source protocol for Encrypted Execution Environments (E3).",
-  "version": "0.13.0",
+  "version": "0.14.0",
   "private": true,
   "license": "LGPL-3.0-only",
   "author": {
@@ -14,6 +14,8 @@
   },
   "scripts": {
     "bump:versions": "tsx scripts/bump-versions.ts",
+    "release:tag": "node scripts/release.mjs tag",
+    "test:release": "node --test scripts/release.test.mjs",
     "build:circuits": "tsx scripts/build-circuits.ts",
     "generate:verifiers": "tsx scripts/generate-verifiers.ts --circuits dkg_aggregator,decryption_aggregator",
     "store:circuits": "tsx scripts/circuit-artifacts.ts",
@@ -31,6 +33,7 @@
     "check:invariants": "./scripts/check-invariants.sh",
     "provenance:manifest": "tsx scripts/generate-provenance-manifest.ts",
     "check:verifiers": "tsx scripts/generate-verifiers.ts --circuits dkg_aggregator,decryption_aggregator --check",
+    "test:circuit-tooling": "tsx --test scripts/circuit-artifacts.test.ts",
     "test": "pnpm evm:test && pnpm rust:test && pnpm sdk:test && pnpm noir:test",
     "test:integration": "cd ./tests/integration && ./test.sh",
     "coverage": "pnpm evm:coverage",

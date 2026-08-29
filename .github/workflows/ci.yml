@@ -5,6 +5,13 @@ concurrency:
   cancel-in-progress: true
 
 on:
+  workflow_call:
+    inputs:
+      release_candidate:
+        description: Run every CI job for the exact release candidate.
+        required: false
+        type: boolean
+        default: false
   workflow_dispatch:
   pull_request:
     branches:
@@ -54,6 +61,7 @@ jobs:
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        if: ${{ !inputs.release_candidate }}
         id: filter
         with:
           # Required for the '!' exclusions below. The default 'some' quantifier
@@ -124,7 +132,7 @@ jobs:
           INTEGRATION="${{ steps.filter.outputs.integration_tests }}"
           DOCKER="${{ steps.filter.outputs.docker }}"
           CI="${{ steps.filter.outputs.ci }}"
-          FORCE="${{ github.event_name == 'workflow_dispatch' }}"
+          FORCE="${{ github.event_name == 'workflow_dispatch' || inputs.release_candidate }}"
 
           any() { for v in "$@"; do [ "$v" = "true" ] && echo "true" && return; done; echo "false"; }
 
@@ -156,6 +164,9 @@ jobs:
           echo "integration_prebuild=$(any $FORCE $RUST $CONTRACTS $CIRCUITS $INTEGRATION $CI)" >> $GITHUB_OUTPUT
           echo "zk_prover_integration=$(any $FORCE $RUST $CIRCUITS $CI)" >> $GITHUB_OUTPUT
           echo "build_interfold_cli=$(any $FORCE $RUST $CONTRACTS $CIRCUITS $INTEGRATION $TEMPLATES $CRISP $SDK $CI)" >> $GITHUB_OUTPUT
+
+      - name: Check release promotion safeguards
+        run: node --test scripts/release.test.mjs
 
   rust_unit_tests:
     needs: [detect_changes]
@@ -298,14 +309,37 @@ jobs:
       - name: 'Install the dependencies'
         run: 'pnpm install --frozen-lockfile'
 
+      - name: Prepare source-aligned circuit archive
+        run: |
+          SOURCE_HASH=$(pnpm tsx scripts/build-circuits.ts hash)
+          git fetch origin circuit-artifacts
+          ARTIFACT_SOURCE_HASH=$(git show origin/circuit-artifacts:SOURCE_HASH)
+          if [ "$ARTIFACT_SOURCE_HASH" != "$SOURCE_HASH" ]; then
+            echo "::error::Circuit artifacts do not match this source tree."
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/circuit-release"
+          git archive \
+            --format=tar.gz \
+            --prefix=circuits/ \
+            --output="$RUNNER_TEMP/circuit-release/circuits-candidate.tar.gz" \
+            origin/circuit-artifacts
+
       - name: Cache Barretenberg binary
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/.bb
           key: bb-${{ env.BB_VERSION }}-${{ runner.arch }}
 
-      - name: Run ZK Prover Integration Tests (with network downloads)
-        run: 'cargo test -p e3-zk-prover --features integration-tests --test integration_tests -- --nocapture'
+      - name: Run ZK prover integration tests
+        env:
+          E3_TEST_CIRCUITS_DOWNLOAD_URL: http://127.0.0.1:8123/circuits-candidate.tar.gz
+        run: |
+          python3 -m http.server 8123 --bind 127.0.0.1 --directory "$RUNNER_TEMP/circuit-release" >"$RUNNER_TEMP/circuit-server.log" 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID"' EXIT
+          curl --fail --silent --head --retry 10 --retry-connrefused --retry-delay 1 "$E3_TEST_CIRCUITS_DOWNLOAD_URL" >/dev/null
+          cargo test -p e3-zk-prover --features integration-tests --test integration_tests -- --nocapture
 
   # Guards the RISC Zero guest artifact. The on-chain imageId is immutable, so a guest change
   # that leaves ImageID.sol untouched ships a verifier that no longer matches this tree.
@@ -553,20 +587,6 @@ jobs:
           path: tests/integration/.interfold/noir/
           retention-days: 1
           if-no-files-found: error
-
-  check-nix-flake:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
-      - uses: cachix/install-nix-action@08dcb3a5e62fa31e2da3d490afc4176ef55ecd72 # v30
-        with:
-          extra_nix_config: |
-            experimental-features = nix-command flakes
-        # if the following fails it means some of our git dependencies or bb has updated
-        # to fix this basically what you need to do here is copy the actual hashes
-        # into the flake.nix where those hashes are expected. if you want to do this locally
-        # install the nix package manager and try running the scripts below.
-      - run: bash ./scripts/nix-versions.sh # display bad versions when deps change
 
   ciphernode_integration_test:
     needs: [detect_changes, integration_prebuild, build_interfold_cli, build_sdk]
@@ -931,8 +951,11 @@ jobs:
       - name: Build interfold circuits
         run: pnpm build:circuits --preset insecure-512 --committee minimum --skip-if-built
 
-      - name: Setup ZK prover
+      - name: Install and verify candidate circuits
+        working-directory: ./examples/CRISP
         run: |
+          tar -C "$GITHUB_WORKSPACE/dist" -czf "$RUNNER_TEMP/circuits-candidate.tar.gz" circuits/
+          interfold noir setup --circuits-archive "$RUNNER_TEMP/circuits-candidate.tar.gz"
           interfold noir setup
 
       - name: Run Playwright tests
@@ -1012,6 +1035,9 @@ jobs:
       - name: Build circuits
         run: pnpm build:circuits
 
+      - name: Test circuit artifact validation
+        run: pnpm test:circuit-tooling
+
       # The generated verifier contracts must match the freshly built verification keys. A drift
       # means the deployed verifier accepts a different circuit from the one in this tree.
       #
@@ -1023,6 +1049,36 @@ jobs:
       # The step above has just built these circuits, so there is nothing stale to guard against.
       - name: Check generated verifiers are in sync
         run: pnpm check:verifiers --no-compile
+
+      - name: Pull the complete circuit matrix
+        run: pnpm store:circuits pull
+
+      - name: Verify release circuit provenance
+        run: pnpm store:circuits verify-release
+
+      - name: Check every generated BFV verifier
+        run: |
+          while read -r preset committee
+          do
+            pnpm build:circuits \
+              --preset "$preset" \
+              --committee "$committee" \
+              --hydrate-bin-only \
+              --no-clean-targets
+            pnpm generate:verifiers \
+              --circuits dkg_aggregator,decryption_aggregator \
+              --preset "$preset" \
+              --committee "$committee" \
+              --check \
+              --no-compile
+          done <<'EOF'
+          insecure-512 micro
+          insecure-512 small
+          secure-8192 minimum
+          secure-8192 micro
+          secure-8192 small
+          insecure-512 minimum
+          EOF
 
       # Asserted before the upload, so a step that consumes or clears a build output fails in the
       # job that did it rather than in the job that needed it. Same list `zk_prover_e2e` checks.
@@ -1395,8 +1451,11 @@ jobs:
       - name: Build interfold circuits
         run: pnpm build:circuits --preset insecure-512 --committee minimum --skip-if-built
 
-      - name: Setup ZK prover
+      - name: Install and verify candidate circuits
+        working-directory: ./templates/default
         run: |
+          tar -C "$GITHUB_WORKSPACE/dist" -czf "$RUNNER_TEMP/circuits-candidate.tar.gz" circuits/
+          interfold noir setup --circuits-archive "$RUNNER_TEMP/circuits-candidate.tar.gz"
           interfold noir setup
 
       - name: Verify downloaded artifacts
@@ -1463,4 +1522,10 @@ jobs:
             BRANCH="$REF_NAME"
             TEMPLATE_REPO="$UPSTREAM_REPO_URL"
           fi
-          interfold init mycitest --verbose --template="${TEMPLATE_REPO}#${BRANCH}:templates/default"
+          interfold init mycitest --verbose --skip-install --template="${TEMPLATE_REPO}#${BRANCH}:templates/default"
+
+          VERSION=$(interfold --version | awk '{print $2}')
+          grep -F "\"@interfold/contracts\": \"$VERSION\"" mycitest/package.json
+          grep -F "\"@interfold/sdk\": \"$VERSION\"" mycitest/package.json
+          grep -F "\"@interfold/react\": \"$VERSION\"" mycitest/client/package.json
+          grep -F "\"@interfold/sdk\": \"$VERSION\"" mycitest/client/package.json
