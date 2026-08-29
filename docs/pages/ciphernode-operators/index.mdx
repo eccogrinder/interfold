@@ -176,3 +176,49 @@ stateDiagram-v2
     Registered --> ExitPending: deregisterOperatorFor(operator)
     ExitPending --> [*]: claimExitsFor(operator, ...) after exitDelay
     ExitPending --> Registered: registerOperatorFor(operator) (after exitDelay)
+```
+
+### State Descriptions
+
+| State           | Description                                                                        |
+| --------------- | ---------------------------------------------------------------------------------- |
+| **Unbonded**    | No ciphernode bond deposited; cannot register                                      |
+| **Bonded**      | FOLD bonded but not yet registered in the registry                                 |
+| **Registered**  | In the registry but lacking minimum ticket balance                                 |
+| **Active**      | Registered and meeting the on-chain requirements for committee selection via sortition |
+| **Inactive**    | Registered but below minimum requirements (tickets or ciphernode bond)             |
+| **ExitPending** | Deregistration requested; waiting for exit delay before claiming or re-registering |
+
+## Requirements
+
+Before operating a ciphernode, ensure you have:
+
+| Requirement           | Details                                                                                    |
+| --------------------- | ------------------------------------------------------------------------------------------ |
+| **FOLD Tokens**       | Mainnet requires at least `32,000 FOLD` for the ciphernode bond                            |
+| **Ticket collateral** | Mainnet requires at least `1,000 sUSDS` shares for one ticket                              |
+| **ETH**               | Gas for transactions on your target network                                                |
+| **Hardware**          | Linux/macOS, 8+ cores, 32GB+ DDR5 RAM, 500GB+ NVMe SSD, stable internet with open UDP port |
+| **Software**          | Interfold CLI installed, WebSocket RPC endpoint                                            |
+
+## Getting Started
+
+Operating a ciphernode requires both running the node software and establishing an eligible on-chain
+operator position. Start by getting the software running before bonding and registration.
+
+Follow these guides in order to become an active ciphernode operator:
+
+1. **[Running a Ciphernode](/ciphernode-operators/running)** - Set up your node using DappNode,
+   Interfold CLI, or Docker
+2. **[Registration & Bonding](/ciphernode-operators/registration)** - Bond your ciphernode bond,
+   register, and add tickets
+3. **[Tickets & Sortition](/ciphernode-operators/tickets-and-sortition)** - Understand how committee
+   selection works
+4. **[Exits, Rewards & Slashing](/ciphernode-operators/exits-and-slashing)** - Learn about rewards
+   and exit procedures
+
+To do the on-chain steps in a browser instead of the CLI, use
+[Run a ciphernode](https://dashboard.theinterfold.com/#operator) on the dashboard.
+
+Need help running or configuring a ciphernode? Join the
+[Interfold technical chat](https://t.me/interfoldhq_technical).
